@@ -55,7 +55,7 @@ I_TYPE: set[str] = {
 
 J_TYPE: set[str] = {"j"}
 
-PSEUDO: set[str] = {"nop", "ret", "call", "li", "la"}
+PSEUDO: set[str] = {"nop",  "li", "la"}
 
 IO_IN:  int = 0x80
 IO_OUT: int = 0x84

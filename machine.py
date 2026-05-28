@@ -1,5 +1,6 @@
 import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
 from isa import IO_IN, IO_OUT
 
 # =================================================================
@@ -89,9 +90,6 @@ class RegisterFile:
 
         if reg_num == 0:
             return
-
-        if reg_num < 0 or reg_num > 7:
-            raise ValueError(f"Неверный номер регистра: {reg_num}")
 
         # Обрезаем до знакового 32-битного числа.
         value = value & 0xFFFFFFFF
@@ -388,3 +386,140 @@ class DataPath:
             f"AR={self.ar:#06x} "
             f"| {self.regs.dump()}"
         )
+
+# =================================================================
+# MICROINSTRUCTION
+# =================================================================
+
+@dataclass
+class MicroInstruction:
+    """
+    Одна микроинструкция = один такт = набор управляющих сигналов.
+
+    action — название метода DataPath который надо вызвать,
+            или None если на этом такте действие не нужно.
+    arg   — аргумент для метода (например "add" для signal_alu_r).
+    next_mpc — что делать с mPC после этого такта:
+            "+1"     — следующая микроинструкция
+            "decode" — прыгнуть по декодеру (после fetch)
+            "reset"  — вернуться к fetch (mPC = 0)
+    """
+    action: str | None = None
+    arg: str | None = None
+    next_mpc: str = "+1"
+    comment: str = "" # для лога
+
+# =================================================================
+# MICROCODE — таблица микропрограмм
+# =================================================================
+
+MICROCODE: dict[int, MicroInstruction] = {
+
+    # FETCH + DECODE (общие для всех инструкций)
+    0:MicroInstruction(action="signal_fetch",
+                       next_mpc="decode",
+                       comment="FETCH: IR=MEM[PC], PC+=4"
+                       ),
+    # add/sub/mul/... (R-type арифметика)
+    10:MicroInstruction(action="signal_alu_r",
+                        arg=None, # операция определяется по funct
+                        next_mpc="reset",
+                        comment="R-type: rd = rs1 OP rs2"
+                        ),
+    11:MicroInstruction(action="signal_alu_i",
+                        arg=None,
+                        next_mpc="reset",
+                        comment="R-type: rd = rs1 OP imm"),
+
+    # lui
+    12: MicroInstruction(action="signal_lui",
+                         next_mpc="reset",
+                         comment="lui: rd = imm << 12",
+    ),
+
+    # lw
+    20: MicroInstruction(action="signal_calc_addr",
+                         next_mpc="+1",
+                         comment="lw: AR = rs1 + imm",
+    ),
+    21: MicroInstruction(action="signal_mem_read",
+                         next_mpc="+1",
+                         comment="lw: MDR = MEM[AR]",
+    ),
+    22: MicroInstruction(action="signal_writeback",
+                         next_mpc="reset",
+                         comment="lw: rd = MDR",
+    ),
+    # sw
+    30: MicroInstruction(action="signal_calc_addr",
+                         next_mpc="+1",
+                         comment="sw: AR = rs1 + imm",
+    ),
+    31: MicroInstruction(action="signal_mem_write",
+                         next_mpc="reset",
+                         comment="sw: MEM[AR] = rd",
+    ),
+
+    # mv
+    40: MicroInstruction(action="signal_mv",
+                         next_mpc="reset",
+                         comment="mv: rd = rs1",
+    ),
+
+    # Ветвления I-type(beqz/bnez)
+    # Условие вычисляет Control Unit и передает через arg
+    50: MicroInstruction(action="signal_branch_i",
+                         arg=None,
+                         next_mpc="reset",
+                         comment="beqz/bnez: if cond PC += imm"),
+
+    # Ветвления R-type (beq/bne/bgt/ble)
+    51: MicroInstruction(action="signal_branch_r",
+                         arg=None,
+                         next_mpc="reset",
+                         comment="beq/bne/bgt/ble: if cond PC += funct"),
+
+    60: MicroInstruction(action="signal_jump",
+                         next_mpc="reset",
+                         comment="j: PC + jaddr"),
+
+    61: MicroInstruction(action="signal_jal",
+                         next_mpc="reset",
+                         comment="jal: ra = PC; PC += imm"),
+
+    62:MicroInstruction(action="signal_jr",
+                        next_mpc="reset",
+                        comment="jr: PC + rs1"),
+
+    70:MicroInstruction(action="halt",
+                        next_mpc="reset",
+                        comment="halt: остановка")
+}
+
+# =================================================================
+# DECODER — opcode → адрес микрокода
+# =================================================================
+DECODER: dict[int, int] = {
+    0x00: 70,   # halt
+    0x01: 10,   # R-type арифметика (add/sub/.../srl)
+    0x02: 11,   # addi
+    0x03: 11,   # andi
+    0x04: 11,   # ori
+    0x05: 11,   # xori
+    0x06: 11,   # slli
+    0x07: 11,   # srli
+    0x08: 11,   # slti
+    0x09: 12,   # lui
+    0x0A: 20,   # lw
+    0x0B: 30,   # sw
+    0x0C: 50,   # beqz
+    0x0D: 50,   # bnez
+    0x0E: 51,   # beq
+    0x0F: 51,   # bne
+    0x10: 51,   # bgt
+    0x11: 51,   # ble
+    0x12: 60,   # j
+    0x13: 61,   # jal
+    0x14: 62,   # jr
+    0x15: 40,   # mv
+}

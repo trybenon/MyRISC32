@@ -279,15 +279,6 @@ def second_pass(lines: list[tuple[int, str]],
 
         tokens = tokenize(line)
 
-        # Метка: пропускаем (уже в symbols)
-        if tokens[0].endswith(":"):
-            tokens = tokens[1:]
-            if not tokens:
-                continue
-
-        mnemonic = tokens[0].lower()
-        args = tokens[1:]
-
         # переключение секций
         if tokens[0] in {".data", ".text"}:
             continue
@@ -305,6 +296,13 @@ def second_pass(lines: list[tuple[int, str]],
             binary += b"\x00" * (target - pc)
             pc = target
             continue
+
+        # Метка: пропускаем (уже в symbols)
+        if tokens[0].endswith(":"):
+            tokens = tokens[1:]
+            if not tokens:
+                continue
+
         # .word: 32-х битное число
         if tokens[0] == ".word":
             val = resolve(tokens[1], symbols, pc)
@@ -328,6 +326,9 @@ def second_pass(lines: list[tuple[int, str]],
             pc += 4
             continue
 
+        mnemonic = tokens[0].lower()
+        args = tokens[1:]
+
         # ====== Псевдоинструкции =======
         # nop
         if mnemonic == "nop":
@@ -343,7 +344,7 @@ def second_pass(lines: list[tuple[int, str]],
             hi = (imm >> 12) & 0xFFFFF
             lo = imm & 0xFFF
             # lui rd, %hi(imm)
-            w1 = encode_i(OPCODES["lui"], rd, 0, hi)
+            w1 = encode_u(OPCODES["lui"], rd,  hi)
             _add(binary, debug, pc, w1, f"li->lui {args[0]}, {hi:#x}")
             pc+= 4
             # addi rd, rd, %lo(imm)
@@ -357,7 +358,7 @@ def second_pass(lines: list[tuple[int, str]],
             addr = resolve(args[1], symbols, pc)
             hi = (addr >> 12) & 0xFFFFF
             lo = addr & 0xFFF
-            w1 = encode_i(OPCODES["lui"], rd, 0, hi)
+            w1 = encode_u(OPCODES["lui"], rd,  hi)
             _add(binary, debug, pc, w1, f"la→lui {args[0]}, {hi:#x}")
             pc += 4
             w2 = encode_i(OPCODES["addi"], rd, rd, lo)
@@ -370,7 +371,6 @@ def second_pass(lines: list[tuple[int, str]],
         _add(binary, debug, pc, word_bytes, " ".join(tokens))
         pc += 4
 
-        # bytes(binary) — конвертировать bytearray в неизменяемый bytes
     return bytes(binary), debug
 
 
