@@ -1,0 +1,390 @@
+import struct
+from dataclasses import dataclass, field
+from isa import IO_IN, IO_OUT
+
+# =================================================================
+# MEMORY
+# =================================================================
+class Memory:
+
+    def __init__(self, size: int, input_tokens: list[int]):
+        # Память(размер в словах)
+        self._data: list[int] = [0] * (size // 4)
+        # Входной поток
+        self._input: list[int] = input_tokens
+        # Выходной поток
+        self._output: list[int] = []
+
+    def load(self, binary: bytes) -> None:
+        """
+        Загружает бинарник в память начиная с адреса 0.
+        """
+        entry_point = struct.unpack_from(">I", binary, 0)[0]
+        code = binary[4:]
+        for byte_addr in range(0, len(code), 4):
+            word = struct.unpack_from(">I", code, byte_addr)[0]
+            self._data[byte_addr // 4] = word
+        return entry_point
+
+    def read(self, byte_addr: int) -> int:
+        """
+        Читает одно машинное слово по байтовому адресу.
+        Если адрес == 0x80 — читает из входного потока.
+        """
+        if byte_addr == IO_IN:
+            if not self._input:
+                raise StopIteration("Входной буфер пуст - EOF")
+            return self._input.pop(0)
+
+        idx = byte_addr // 4
+        if idx < 0 or idx >= len(self._data):
+            raise IndexError(f"Адрес вне памяти: {byte_addr:#x}")
+        return self._data[idx]
+
+    def write(self, byte_addr: int, value: int) -> None:
+        """
+        Записывает одно машинное слово по байтовому адресу.
+        Если адрес == 0x84 — пишет в выходной поток.
+        """
+        if byte_addr == IO_OUT:
+            self._output.append(value & 0xFF)
+            return
+
+        idx = byte_addr // 4
+        if idx < 0 or idx >= len(self._data):
+            raise IndexError(f"Адрес вне памяти: {byte_addr:#x}")
+        self._data[idx] = value & 0xFFFFFFFF
+
+    def get_output(self) -> str:
+        """Возвращает выходной буфер как строку."""
+        return "".join(chr(c) for c in self._output)
+
+
+# =================================================================
+# REGISTER FILE
+# =================================================================
+
+class RegisterFile:
+    """
+    Банк из 8 регистров общего назначения.
+    r0 (zero) всегда равен 0 — запись игнорируется.
+    """
+
+    def __init__(self):
+        self._regs: list[int] = [0] * 8
+
+    def read(self, reg_num: int) -> int:
+        """Прочитать значение по регистру"""
+        if reg_num < 0 or reg_num > 7:
+            raise ValueError(f"Неверный номер регистра: {reg_num}")
+        return self._regs[reg_num]
+
+    def write(self, reg_num: int, value: int) -> None:
+        """
+        Записать значение в регистр.
+        Если reg_num == 0 — игнорируем.
+        """
+        if reg_num < 0 or reg_num > 7:
+            raise ValueError(f"Неверный номер регистра: {reg_num}")
+
+        if reg_num == 0:
+            return
+
+        if reg_num < 0 or reg_num > 7:
+            raise ValueError(f"Неверный номер регистра: {reg_num}")
+
+        # Обрезаем до знакового 32-битного числа.
+        value = value & 0xFFFFFFFF
+        if value >= 0x80000000:
+            value -= 0x100000000
+        self._regs[reg_num] = value
+
+    def dump(self) -> str:
+        """
+        Возвращает строку с состоянием всех регистров.
+        Используется в логе на каждом такте.
+
+        Пример вывода:
+        zero=0 ra=0 sp=0 t0=128 t1=132 a0=72 a1=0 a2=0
+        """
+        names = ["zero", "ra", "sp", "t0", "t1", "a0", "a1", "a2"]
+        parts = [
+            f"{name}={self._regs[i]}"
+            for i, name in enumerate(names)
+        ]
+
+        return " ".join(parts)
+
+# =================================================================
+# ALU
+# =================================================================
+
+class ALU:
+    """
+    Арифметико-логическое устройство.
+    Принимает два операнда и код операции, возвращает результат.
+    """
+
+    def compute(self, op: str, a: int, b: int) -> int:
+        """
+        op — строка-название операции: "add", "sub", "mul" и т.д.
+        a, b — знаковые 32-битные операнды.
+        Возвращает знаковый 32-битный результат.
+        """
+        match op:
+            case "add":
+                result = a + b
+
+            case "sub":
+                result = a - b
+
+            case "mul":
+                result = a * b
+
+            case "div":
+                # Деление на 0 — возвращаем -1.
+                result = -1 if b == 0 else int(a / b)
+
+            case "rem":
+                # Остаток от деления. Если b == 0 — возвращаем a.
+                result = a if b == 0 else a % b
+
+            case "and":
+                result = a & b
+
+            case "or":
+                result = a | b
+
+            case "xor":
+                result = a ^ b
+
+            case "sll":
+                # Сдвиг влево
+                result = a << (b & 0x1F)
+
+            case "srl":
+                # Логический сдвиг вправо
+                result = (a & 0xFFFFFFFF) >> (b & 0x1F)
+
+            case "slt":
+                # Set Less Than: если a < b — возвращаем 1, иначе 0
+                # Используется в slti инструкции
+                result = 1 if a < b else 0
+
+            case "passa":
+                # "pass a" — просто вернуть a без изменений
+                # Нужно для mv и lui
+                result = a
+
+            case _:
+                # ничего не совпало
+                raise ValueError(f"Неизвестная операция ALU: {op!r}")
+
+        # Обрезаем результат до знакового 32-битного числа.
+        result = result & 0xFFFFFFFF
+        if result >= 0x80000000:
+            result -= 0x100000000
+        return result
+
+# =================================================================
+# DataPath
+# =================================================================
+class DataPath:
+    """Содержит все компоненты процессора и внутренние регистры (PC, IR, AR, MDR)
+     Выполняет управляющие сигналы одного такта."""
+    def __init__(self, memory: Memory, start_pc: int ):
+        self.memory: Memory = memory
+        self.regs = RegisterFile()
+        self.alu = ALU()
+
+        # Внутренние регистры
+        self.pc: int = start_pc
+        self.ir: int = 0
+        self.ar: int = 0
+        self.mdr: int = 0
+
+    #Декодирование полей инструкции
+    @property
+    def ir_opcode(self) -> int:
+        """Биты 31:25 - оп-код (7 бит)"""
+        return (self.ir >> 25) & 0x7F
+    @property
+    def ir_rd(self) -> int:
+        """Биты 24:22 - регистр назначения (3 бита)"""
+        return (self.ir >> 22) & 0x7
+    @property
+    def ir_rs1(self) -> int:
+        """Биты 21:19 - первый регистр источник (3 бита)"""
+        return (self.ir >> 19) & 0x7
+    @property
+    def ir_rs2(self) -> int:
+        """Биты 18:16 - второй регистр-источник (3 бита, только R-type)."""
+        return (self.ir >> 16) & 0x7
+    @property
+    def ir_imm(self) -> int:
+        """
+        Биты 18:0 - непосредственное значение I-type (19 бит),
+        знаково расширенное до 32 бит.
+        """
+        raw = self.ir & 0x7FFFF
+        if raw & 0x40000:
+            raw -= 0x80000
+        return raw
+    @property
+    def ir_imm_u(self) -> int:
+        """
+        Биты 21:0 - непосредственное значение U-type (22 бита),
+        для инструкции lui. Знаково расширяем до 32 бит.
+        """
+        raw = self.ir & 0x3FFFFF
+        if raw & 0x200000:
+            raw -= 0x400000
+        return raw
+
+    @property
+    def ir_funct(self) -> int:
+        """
+        Биты 15:0 — поле funct (16 бит), знаково расширенное.
+        Для R-type ветвлений здесь смещение перехода.
+        """
+        raw = self.ir & 0xFFFF
+        if raw & 0x8000:
+            raw -= 0x10000
+        return raw
+
+    @property
+    def ir_jaddr(self) -> int:
+        """
+        Биты 24:0 — адрес перехода J-type (25 бит), знаково расширен.
+        Только для инструкции j.
+        """
+        raw = self.ir & 0x1FFFFFF
+        if raw & 0x1000000:
+            raw -= 0x2000000
+        return raw
+
+
+    # СИГНАЛЫ — действия одного такта
+
+    def signal_fetch(self) -> None:
+        """Первый такт всех инструкций."""
+        self.ir = self.memory.read(self.pc)
+        self.pc += 4
+
+    def signal_calc_addr(self) -> None:
+        """
+        Вычисление адреса для lw/sw:
+            AR ← regs[rs1] + imm
+        """
+        rs1_val = self.regs.read(self.ir_rs1)
+        self.ar = self.alu.compute("add", rs1_val, self.ir_imm)
+
+    def signal_mem_read(self) -> None:
+        """
+        Чтение из памяти:
+            MDR ← MEM[AR]
+        """
+        self.mdr = self.memory.read(self.ar)
+
+    def signal_mem_write(self) -> None:
+        """
+        Запись в память:
+            MEM[AR] ← regs[rd]
+        """
+        self.memory.write(self.ar, self.regs.read(self.ir_rd))
+
+    def signal_writeback(self) -> None:
+        """
+        Запись прочитанного в регистр:
+            regs[rd] ← MDR
+        Используется после signal_mem_read для lw.
+        """
+        self.regs.write(self.ir_rd, self.mdr)
+
+    def signal_alu_r(self, op: str) -> None:
+        """
+        R-type арифметика:
+            regs[rd] ← ALU(regs[rs1], regs[rs2])
+        """
+        a = self.regs.read(self.ir_rs1)
+        b = self.regs.read(self.ir_rs2)
+        self.regs.write(self.ir_rd, self.alu.compute(op, a, b))
+
+    def signal_alu_i(self, op: str) -> None:
+        """
+        I-type арифметика:
+            regs[rd] ← ALU(regs[rs1], imm)
+        """
+        a = self.regs.read(self.ir_rs1)
+        self.regs.write(self.ir_rd, self.alu.compute(op, a, self.ir_imm))
+
+    def signal_lui(self) -> None:
+        """
+        lui rd, imm:
+            regs[rd] ← (imm & 0xFFFFF) << 12
+        Берём 20 бит из 22-битного U-type поля, сдвигаем в верх.
+        """
+        self.regs.write(self.ir_rd, (self.ir_imm_u & 0xFFFFF) << 12)
+
+    def signal_mv(self) -> None:
+        """
+        mv rd, rs1:
+            regs[rd] ← regs[rs1]
+        """
+        self.regs.write(self.ir_rd, self.regs.read(self.ir_rs1))
+
+    # --- Ветвления и переходы ---
+    # К моменту вызова signal_fetch уже увеличил PC на 4.
+    # Смещение отсчитывается от адреса самой инструкции,
+    # поэтому откатываемся: (PC - 4) + offset * 4.
+
+    def signal_branch_i(self, taken: bool) -> None:
+        """
+        I-type ветвление (beqz/bnez):
+            если taken: PC ← (PC - 4) + imm * 4
+        """
+        if taken:
+            self.pc = (self.pc - 4) + self.ir_imm * 4
+
+    def signal_branch_r(self, taken: bool) -> None:
+        """
+        R-type ветвление (beq/bne/bgt/ble):
+            если taken: PC ← (PC - 4) + funct * 4
+        """
+        if taken:
+            self.pc = (self.pc - 4) + self.ir_funct * 4
+
+    def signal_jump(self) -> None:
+        """
+        j label:
+            PC ← (PC - 4) + jaddr * 4
+        """
+        self.pc = (self.pc - 4) + self.ir_jaddr * 4
+
+    def signal_jal(self) -> None:
+        """
+        jal label:
+            regs[ra] ← PC
+            PC ← (PC - 4) + imm * 4
+        ra = регистр 1.
+        """
+        self.regs.write(1, self.pc)
+        self.pc = (self.pc - 4) + self.ir_imm * 4
+
+    def signal_jr(self) -> None:
+        """
+        jr rs1:
+            PC ← regs[rs1]
+        """
+        self.pc = self.regs.read(self.ir_rs1)
+
+
+    # ОТЛАДКА
+    def dump(self) -> str:
+        """Строка состояния процессора для лога."""
+        return (
+            f"PC={self.pc:#06x} "
+            f"IR={self.ir:#010x} "
+            f"AR={self.ar:#06x} "
+            f"| {self.regs.dump()}"
+        )

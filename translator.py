@@ -1,5 +1,7 @@
 import sys
 import struct
+
+
 from isa import OPCODES, FUNCT, REGISTERS, R_TYPE, I_TYPE, J_TYPE, PSEUDO
 
 def clean_lines(sourse: str) -> list[tuple[int, str]]:
@@ -111,6 +113,19 @@ def encode_i(opcode: int, rd: int, rs1: int, imm: int) -> bytes:
     )
     return struct.pack(">I", word)
 
+def encode_u(opcode: int, rd: int, imm: int) -> bytes:
+    """
+    Упаковывает U-type инструкцию в 4 байта.
+    Формат: [opcode 7][rd 3][imm 22] = 32 бита
+    """
+    imm = imm & 0x3FFFFF
+    word: int = (
+        (opcode << 25) |
+        (rd << 22) |
+        imm
+    )
+    return struct.pack(">I", word)
+
 
 def encode_j(opcode: int, addr: int) -> bytes:
     """
@@ -192,7 +207,7 @@ def encode_instruction(mnemonic: str, args: list[str], symbols: dict[str, int], 
     if mnemonic == "lui":
         rd = reg(args[0])
         imm = resolve(args[1], symbols, pc)
-        return encode_i(op, rd, 0, imm)
+        return encode_u(op, rd, imm)
 
     # lw rd, imm(rs1)
     if mnemonic == "lw":
@@ -261,9 +276,22 @@ def second_pass(lines: list[tuple[int, str]],
     debug: list[tuple[int, int, str]] = []
     pc: int = 0
     for lineno, line in lines:
+
         tokens = tokenize(line)
+
+        # Метка: пропускаем (уже в symbols)
+        if tokens[0].endswith(":"):
+            tokens = tokens[1:]
+            if not tokens:
+                continue
+
+        mnemonic = tokens[0].lower()
+        args = tokens[1:]
+
+        # переключение секций
         if tokens[0] in {".data", ".text"}:
             continue
+
         # .org: заполнить промежуток нулями и переставить счётчик
         if tokens[0] == ".org":
             target = int(tokens[1], 0)
@@ -277,3 +305,134 @@ def second_pass(lines: list[tuple[int, str]],
             binary += b"\x00" * (target - pc)
             pc = target
             continue
+        # .word: 32-х битное число
+        if tokens[0] == ".word":
+            val = resolve(tokens[1], symbols, pc)
+            word_bytes = struct.pack(">I", val & 0xFFFFFFFF)
+            binary += word_bytes
+            debug.append((pc, val, f".word {val:#010x}"))
+            pc  += 4
+            continue
+
+        # .cstr: си-строка
+        if tokens[0] == ".cstr":
+            s = parse_string(line)
+            for ch in s:
+                v = ord(ch) # переводим в ASCII
+                binary += struct.pack(">I", v)
+                debug.append((pc, v, f".cstr {ch!r}"))
+                pc += 4
+                # Нулевой терминатор
+            binary += struct.pack(">I", 0)
+            debug.append((pc, 0, ".cstr '\\0'"))
+            pc += 4
+            continue
+
+        # ====== Псевдоинструкции =======
+        # nop
+        if mnemonic == "nop":
+            word_bytes = encode_i(OPCODES["addi"], 0, 0, 0)
+            _add(binary, debug, pc, word_bytes, "nop")
+            pc += 4
+            continue
+
+        # li rd, imm (= lui + addi)
+        if mnemonic == "li":
+            rd = reg(args[0])
+            imm = resolve(args[1], symbols, pc)
+            hi = (imm >> 12) & 0xFFFFF
+            lo = imm & 0xFFF
+            # lui rd, %hi(imm)
+            w1 = encode_i(OPCODES["lui"], rd, 0, hi)
+            _add(binary, debug, pc, w1, f"li->lui {args[0]}, {hi:#x}")
+            pc+= 4
+            # addi rd, rd, %lo(imm)
+            w2 = encode_i(OPCODES["addi"], rd, rd, lo)
+            _add(binary, debug, pc, w2, f"li->addi {args[0]}, {lo:#x}")
+            pc += 4
+            continue
+
+        if mnemonic == "la":
+            rd = reg(args[0])
+            addr = resolve(args[1], symbols, pc)
+            hi = (addr >> 12) & 0xFFFFF
+            lo = addr & 0xFFF
+            w1 = encode_i(OPCODES["lui"], rd, 0, hi)
+            _add(binary, debug, pc, w1, f"la→lui {args[0]}, {hi:#x}")
+            pc += 4
+            w2 = encode_i(OPCODES["addi"], rd, rd, lo)
+            _add(binary, debug, pc, w2, f"la→addi {args[0]}, {lo:#x}")
+            pc += 4
+            continue
+
+        # ====== Обычная инструкция =======
+        word_bytes = encode_instruction(mnemonic, args, symbols, pc)
+        _add(binary, debug, pc, word_bytes, " ".join(tokens))
+        pc += 4
+
+        # bytes(binary) — конвертировать bytearray в неизменяемый bytes
+    return bytes(binary), debug
+
+
+def _add(
+        binary: bytearray,
+        debug: list[tuple[int, int, str]],
+        pc: int,
+        word_bytes: bytes,
+         mnemonic: str
+) -> None:
+    """
+    Вспомогательная функция: добавляет инструкцию в бинарник и дамп.
+    """
+    binary += word_bytes
+    word = struct.unpack(">I", word_bytes)[0]
+    debug.append((pc, word, mnemonic))
+
+def translate(sourse: str) -> tuple[bytes, list[tuple[int, int, str]], dict[str, int]]:
+    """Основная функция: текст -> бинарник"""
+    lines = clean_lines(sourse)
+    symbols = first_pass(lines)
+    binary, debug = second_pass(lines, symbols)
+    return binary, debug, symbols
+
+def write_debug(debug: list[tuple[int, int, str]], path: str) -> None:
+    """Пишет отладочный дамп в файл"""
+    with open(path, "w", encoding="utf-8") as f:
+        for addr, word, mnemonic in debug:
+            # {addr:04X}  — адрес, минимум 4 символа, hex заглавными
+            # {word:08X}  — слово, ровно 8 символов
+            f.write(f"{addr:04X}  {word:08X}  {mnemonic}\n")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Использование: python translator.py <input.asm> <output.bin>")
+        sys.exit(1)
+
+    src_path = sys.argv[1]
+    bin_path = sys.argv[2]
+
+    dbg_path = bin_path.replace(".bin", ".debug")
+
+    with open(src_path, encoding="utf-8") as f:
+        source = f.read()
+
+    binary, debug, symbols = translate(source)
+
+    # Точка входа — адрес метки _start
+    if "_start" not in symbols:
+        print("Ошибка: не найдена метка _start")
+        sys.exit(1)
+    entry_point = symbols["_start"]
+
+    # Заголовок: 4 байта с адресом точки входа, потом сам код
+    header = struct.pack(">I", entry_point)
+
+    with open(bin_path, "wb") as f:
+        f.write(header)
+        f.write(binary)
+
+    write_debug(debug, dbg_path)
+
+
+    print(f"Готово: {len(binary)} байт → {bin_path}")
+    print(f"Дамп:   {dbg_path}")
