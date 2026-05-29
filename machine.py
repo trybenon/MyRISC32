@@ -1,3 +1,4 @@
+import opcode
 import struct
 from dataclasses import dataclass
 
@@ -16,7 +17,7 @@ class Memory:
         # Выходной поток
         self._output: list[int] = []
 
-    def load(self, binary: bytes) -> None:
+    def load(self, binary: bytes):
         """
         Загружает бинарник в память начиная с адреса 0.
         """
@@ -523,3 +524,244 @@ DECODER: dict[int, int] = {
     0x14: 62,   # jr
     0x15: 40,   # mv
 }
+
+# =================================================================
+# CONTROL UNIT
+# =================================================================
+
+class ControlUnit:
+    def __init__(self, datapath: DataPath):
+        self.dp = datapath
+        self.mpc: int = 0
+        self.tick: int = 0 # счетчик тактов(для логов)
+        self.halted: bool = False
+
+    def decode(self) -> int:
+        """
+        Декодер: opcode из IR → адрес блока микрокода.
+        """
+        opcode = self.dp.ir_opcode
+        if opcode not in DECODER:
+            raise ValueError(f"Неизвестный opcode {opcode}")
+        return DECODER[opcode]
+    def resolve_alu_op(self) -> str:
+        """
+        Для R-type арифметики (блок mPC=10) — определить операцию по funct.
+        Для I-type арифметики (блок mPC=11) — по opcode.
+        Возвращает строку для ALU.compute().
+        """
+
+        opcode = self.dp.ir_opcode
+
+        if opcode == 0x01:
+            funct = self.dp.ir_funct
+
+            r_ops = {
+                0x00: "add", 0x01: "sub", 0x02: "mul",
+                0x03: "div", 0x04: "rem", 0x05: "and",
+                0x06: "or", 0x07: "xor", 0x08: "sll",
+                0x09: "srl",
+            }
+            return r_ops[funct]
+
+        # I-type: операция по opcode
+        i_ops = {
+            0x02: "add",
+            0x03: "and",
+            0x04: "or",
+            0x05: "xor",
+            0x06: "sll",
+            0x07: "srl",
+            0x08: "slt",   # slti
+        }
+        return i_ops[opcode]
+    def resolve_branch_taken(self) -> bool:
+        """
+        Вычислить выполнено ли условие ветвления
+        """
+        opcode = self.dp.ir_opcode
+
+        # I-type: сравнение rs1 с нулём
+        if opcode == 0x0C:
+            return self.dp.regs.read(self.dp.ir_rs1) == 0
+        if opcode == 0x0D:
+            return self.dp.regs.read(self.dp.ir_rs1) != 0
+
+        # R-type: сравнение rs1 и rs2
+        a = self.dp.regs.read(self.dp.ir_rs1)
+        b = self.dp.regs.read(self.dp.ir_rs2)
+
+        if opcode == 0x0E: # beq
+            return a == b
+        if opcode == 0x0F: # bne
+            return a != b
+        if opcode == 0x10:  # bgt
+            return a > b
+        if opcode == 0x11:  # ble
+            return a <= b
+
+        raise ValueError(f"Не ветвление: opcode {opcode:#x}")
+
+
+    def execute_tick(self) -> MicroInstruction:
+        """
+        Выполнить ОДИН такт.
+        Возвращает выполненную микроинструкцию (для лога).
+        """
+        # 1. Читаем микроинструкцию по текущему mPC
+        if self.mpc not in MICROCODE:
+            raise ValueError(f"Нет микрокода по адресу mPC={self.mpc}")
+        micro = MICROCODE[self.mpc]
+
+        # 2. Исполняем действие
+        action = micro.action
+
+        if action == "halt":
+            # Особый случай — поднимаем флаг остановки
+            self.halted = True
+
+        elif action == "signal_alu_r":
+            # R-type: операцию определяем по funct прямо сейчас
+            op = self.resolve_alu_op()
+            self.dp.signal_alu_r(op)
+
+        elif action == "signal_alu_i":
+            # I-type: операцию по opcode
+            op = self.resolve_alu_op()
+            self.dp.signal_alu_i(op)
+
+        elif action == "signal_branch_i":
+            # Вычисляем условие и передаём в сигнал
+            taken = self.resolve_branch_taken()
+            self.dp.signal_branch_i(taken)
+
+        elif action == "signal_branch_r":
+            taken = self.resolve_branch_taken()
+            self.dp.signal_branch_r(taken)
+
+        elif action is not None:
+            # Все остальные сигналы без аргументов:
+            method = getattr(self.dp, action)
+            method()
+
+        # 3. Вычисляем следующий mPC
+        if micro.next_mpc == "+1":
+            self.mpc += 1
+        elif micro.next_mpc == "decode":
+            self.mpc = self.decode()
+        elif micro.next_mpc == "reset":
+            self.mpc = 0
+        else:
+            raise ValueError(f"Неизвестный переход mPC: {micro.next_mpc}")
+
+        # 4. Увеличиваем счётчик тактов
+        self.tick += 1
+
+        return micro
+
+
+# =================================================================
+# SIMULATE — главный цикл
+# =================================================================
+
+def simulate(
+        binary: bytes,
+        input_str: str,
+        memory_size: int = 0x1000,
+        max_ticks: int = 100_000
+) -> tuple[str, list[str]]:
+    """
+    Запускает программу на симуляторе.
+
+    binary      — машинный код (с 4-байтным заголовком точки входа)
+    input_str   — входные данные (строка, что подаётся в stdin)
+    memory_size — размер памяти в байтах
+    max_ticks   — предохранитель от бесконечного цикла
+
+    Возвращает:
+      output — то что программа вывела
+      log    — список строк журнала (по одной на такт)
+    """
+
+    # Превращаем входную строку в список ASCII-кодов.
+    input_tokens: list[int] = [ord(c) for c in input_str]
+
+    memory = Memory(memory_size, input_tokens)
+    entry_point = memory.load(binary)
+
+    datapath = DataPath(memory, start_pc=entry_point)
+    cu = ControlUnit(datapath)
+
+    log: list[str] = []
+
+    # Главный цикл тактов
+    while not cu.halted and cu.tick < max_ticks:
+        # Запоминаем состояние до такта для лога
+        tick_num = cu.tick
+        mpc_before = cu.mpc
+
+        try:
+            # Выполняем один такт
+            micro = cu.execute_tick()
+
+        except StopIteration:
+            # Входной буфер пуст (EOF при чтении из 0x80) — нормальный конец
+            log.append(f"--- EOF на такте {tick_num}, останов ---")
+            break
+
+        # Формируем строку журнала.
+        log_line = (
+            f"TICK {tick_num:>4} | "
+            f"mPC={mpc_before:>3} | "
+            f"{datapath.dump()} | "
+            f"{micro.comment}"
+        )
+        log.append(log_line)
+
+    # Проверка предохранителя.
+    if cu.tick >= max_ticks:
+        log.append(f"--- ПРЕВЫШЕН ЛИМИТ ТАКТОВ ({max_ticks}) ---")
+
+    return memory.get_output(), log
+
+
+# =================================================================
+# MAIN — запуск из командной строки
+# =================================================================
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Использование: python machine.py <program.bin> [input.txt]")
+        sys.exit(1)
+
+    bin_path = sys.argv[1]
+
+    # Входные данные: второй аргумент — файл с вводом (необязательный).
+    input_data = ""
+    if len(sys.argv) >= 3:
+        with open(sys.argv[2], encoding="utf-8") as f:
+            input_data = f.read()
+
+    # Читаем бинарник
+    with open(bin_path, "rb") as f:
+        binary = f.read()
+
+    output, log = simulate(binary, input_data)
+
+    # Печатаем журнал
+    print("=" * 70)
+    print("ЖУРНАЛ ВЫПОЛНЕНИЯ:")
+    print("=" * 70)
+    for line in log:
+        print(line)
+
+    # Печатаем результат
+    print("=" * 70)
+    print("ВЫВОД ПРОГРАММЫ:")
+    print("=" * 70)
+    print(repr(output))
+    print()
+    print("Как текст:")
+    print(output)
