@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: pip install pytest ruff mypy
       - name: Ruff (lint)
-        run: check .
+        run: ruff check .
       - name: Mypy (types)
         run: mypy translator.py machine.py isa.py
 
