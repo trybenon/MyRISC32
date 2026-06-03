@@ -1,8 +1,8 @@
-import sys
 import struct
+import sys
 
+from isa import FUNCT, OPCODES, PSEUDO, REGISTERS
 
-from isa import OPCODES, FUNCT, REGISTERS, R_TYPE, I_TYPE, J_TYPE, PSEUDO
 
 def clean_lines(sourse: str) -> list[tuple[int, str]]:
     result: list[tuple[int, str]] = []
@@ -427,9 +427,9 @@ if __name__ == "__main__":
     # Заголовок: 4 байта с адресом точки входа, потом сам код
     header = struct.pack(">I", entry_point)
 
-    with open(bin_path, "wb") as f:
-        f.write(header)
-        f.write(binary)
+    with open(bin_path, "wb") as bin_f:
+        bin_f.write(header)
+        bin_f.write(binary)
 
     write_debug(debug, dbg_path)
 

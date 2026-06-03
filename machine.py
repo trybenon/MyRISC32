@@ -1,8 +1,8 @@
-import opcode
 import struct
 from dataclasses import dataclass
 
 from isa import IO_IN, IO_OUT
+
 
 # =================================================================
 # MEMORY
@@ -538,7 +538,7 @@ class ControlUnit:
 
     def decode(self) -> int:
         """
-        Декодер: opcode из IR → адрес блока микрокода.
+        Декодер: opcode из IR -> адрес блока микрокода.
         """
         opcode = self.dp.ir_opcode
         if opcode not in DECODER:
@@ -575,6 +575,7 @@ class ControlUnit:
             0x08: "slt",   # slti
         }
         return i_ops[opcode]
+
     def resolve_branch_taken(self) -> bool:
         """
         Вычислить выполнено ли условие ветвления
@@ -668,7 +669,7 @@ def simulate(
         binary: bytes,
         input_str: str,
         memory_size: int = 0x1000,
-        max_ticks: int = 100_000
+        max_ticks: int = 1_000_000
 ) -> tuple[str, list[str]]:
     """
     Запускает программу на симуляторе.
@@ -745,8 +746,8 @@ if __name__ == "__main__":
             input_data = f.read()
 
     # Читаем бинарник
-    with open(bin_path, "rb") as f:
-        binary = f.read()
+    with open(bin_path, "rb") as bin_f:
+        binary: bytes = bin_f.read()
 
     output, log = simulate(binary, input_data)
 

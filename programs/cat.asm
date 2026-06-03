@@ -19,4 +19,3 @@ loop:
     j    loop
 
 done:
-    halt
