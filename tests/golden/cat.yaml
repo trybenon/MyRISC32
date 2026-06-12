@@ -1,0 +1,125 @@
+source_name: cat.asm
+input: "test123\n"
+expected_log: |-
+  TICK    0 | mPC=  0 | PC=0x000c IR=0x12c00000 AR=0x0000 | zero=0 ra=0 sp=0 t0=0 t1=0 a0=0 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK    1 | mPC= 12 | PC=0x000c IR=0x12c00000 AR=0x0000 | zero=0 ra=0 sp=0 t0=0 t1=0 a0=0 a1=0 a2=0 | lui: rd = imm << 12
+  TICK    2 | mPC=  0 | PC=0x0010 IR=0x04d80000 AR=0x0000 | zero=0 ra=0 sp=0 t0=0 t1=0 a0=0 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK    3 | mPC= 11 | PC=0x0010 IR=0x04d80000 AR=0x0000 | zero=0 ra=0 sp=0 t0=0 t1=0 a0=0 a1=0 a2=0 | R-type: rd = rs1 OP imm
+  TICK    4 | mPC=  0 | PC=0x0014 IR=0x14d80000 AR=0x0000 | zero=0 ra=0 sp=0 t0=0 t1=0 a0=0 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK    5 | mPC= 20 | PC=0x0014 IR=0x14d80000 AR=0x0000 | zero=0 ra=0 sp=0 t0=0 t1=0 a0=0 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK    6 | mPC= 21 | PC=0x0014 IR=0x14d80000 AR=0x0000 | zero=0 ra=0 sp=0 t0=0 t1=0 a0=0 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK    7 | mPC= 22 | PC=0x0014 IR=0x14d80000 AR=0x0000 | zero=0 ra=0 sp=0 t0=128 t1=0 a0=0 a1=0 a2=0 | lw: rd = MDR
+  TICK    8 | mPC=  0 | PC=0x0018 IR=0x13000000 AR=0x0000 | zero=0 ra=0 sp=0 t0=128 t1=0 a0=0 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK    9 | mPC= 12 | PC=0x0018 IR=0x13000000 AR=0x0000 | zero=0 ra=0 sp=0 t0=128 t1=0 a0=0 a1=0 a2=0 | lui: rd = imm << 12
+  TICK   10 | mPC=  0 | PC=0x001c IR=0x05200004 AR=0x0000 | zero=0 ra=0 sp=0 t0=128 t1=0 a0=0 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   11 | mPC= 11 | PC=0x001c IR=0x05200004 AR=0x0000 | zero=0 ra=0 sp=0 t0=128 t1=4 a0=0 a1=0 a2=0 | R-type: rd = rs1 OP imm
+  TICK   12 | mPC=  0 | PC=0x0020 IR=0x15200000 AR=0x0000 | zero=0 ra=0 sp=0 t0=128 t1=4 a0=0 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   13 | mPC= 20 | PC=0x0020 IR=0x15200000 AR=0x0004 | zero=0 ra=0 sp=0 t0=128 t1=4 a0=0 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   14 | mPC= 21 | PC=0x0020 IR=0x15200000 AR=0x0004 | zero=0 ra=0 sp=0 t0=128 t1=4 a0=0 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   15 | mPC= 22 | PC=0x0020 IR=0x15200000 AR=0x0004 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=0 a1=0 a2=0 | lw: rd = MDR
+  TICK   16 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0004 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=0 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   17 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=0 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   18 | mPC= 21 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=0 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   19 | mPC= 22 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | lw: rd = MDR
+  TICK   20 | mPC=  0 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   21 | mPC= 50 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | beqz/bnez: if cond PC += imm
+  TICK   22 | mPC=  0 | PC=0x002c IR=0x17600000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   23 | mPC= 30 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | sw: AR = rs1 + imm
+  TICK   24 | mPC= 31 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | sw: MEM[AR] = rd
+  TICK   25 | mPC=  0 | PC=0x0030 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   26 | mPC= 60 | PC=0x0020 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | j: PC + jaddr
+  TICK   27 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   28 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   29 | mPC= 21 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   30 | mPC= 22 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | lw: rd = MDR
+  TICK   31 | mPC=  0 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   32 | mPC= 50 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | beqz/bnez: if cond PC += imm
+  TICK   33 | mPC=  0 | PC=0x002c IR=0x17600000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   34 | mPC= 30 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | sw: AR = rs1 + imm
+  TICK   35 | mPC= 31 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | sw: MEM[AR] = rd
+  TICK   36 | mPC=  0 | PC=0x0030 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   37 | mPC= 60 | PC=0x0020 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | j: PC + jaddr
+  TICK   38 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   39 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   40 | mPC= 21 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=101 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   41 | mPC= 22 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | lw: rd = MDR
+  TICK   42 | mPC=  0 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   43 | mPC= 50 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | beqz/bnez: if cond PC += imm
+  TICK   44 | mPC=  0 | PC=0x002c IR=0x17600000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   45 | mPC= 30 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | sw: AR = rs1 + imm
+  TICK   46 | mPC= 31 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | sw: MEM[AR] = rd
+  TICK   47 | mPC=  0 | PC=0x0030 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   48 | mPC= 60 | PC=0x0020 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | j: PC + jaddr
+  TICK   49 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   50 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   51 | mPC= 21 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=115 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   52 | mPC= 22 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | lw: rd = MDR
+  TICK   53 | mPC=  0 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   54 | mPC= 50 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | beqz/bnez: if cond PC += imm
+  TICK   55 | mPC=  0 | PC=0x002c IR=0x17600000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   56 | mPC= 30 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | sw: AR = rs1 + imm
+  TICK   57 | mPC= 31 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | sw: MEM[AR] = rd
+  TICK   58 | mPC=  0 | PC=0x0030 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   59 | mPC= 60 | PC=0x0020 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | j: PC + jaddr
+  TICK   60 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   61 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   62 | mPC= 21 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=116 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   63 | mPC= 22 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | lw: rd = MDR
+  TICK   64 | mPC=  0 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   65 | mPC= 50 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | beqz/bnez: if cond PC += imm
+  TICK   66 | mPC=  0 | PC=0x002c IR=0x17600000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   67 | mPC= 30 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | sw: AR = rs1 + imm
+  TICK   68 | mPC= 31 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | sw: MEM[AR] = rd
+  TICK   69 | mPC=  0 | PC=0x0030 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   70 | mPC= 60 | PC=0x0020 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | j: PC + jaddr
+  TICK   71 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   72 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   73 | mPC= 21 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=49 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   74 | mPC= 22 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | lw: rd = MDR
+  TICK   75 | mPC=  0 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   76 | mPC= 50 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | beqz/bnez: if cond PC += imm
+  TICK   77 | mPC=  0 | PC=0x002c IR=0x17600000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   78 | mPC= 30 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | sw: AR = rs1 + imm
+  TICK   79 | mPC= 31 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | sw: MEM[AR] = rd
+  TICK   80 | mPC=  0 | PC=0x0030 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   81 | mPC= 60 | PC=0x0020 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | j: PC + jaddr
+  TICK   82 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   83 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   84 | mPC= 21 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=50 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   85 | mPC= 22 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | lw: rd = MDR
+  TICK   86 | mPC=  0 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   87 | mPC= 50 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | beqz/bnez: if cond PC += imm
+  TICK   88 | mPC=  0 | PC=0x002c IR=0x17600000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   89 | mPC= 30 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | sw: AR = rs1 + imm
+  TICK   90 | mPC= 31 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | sw: MEM[AR] = rd
+  TICK   91 | mPC=  0 | PC=0x0030 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   92 | mPC= 60 | PC=0x0020 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | j: PC + jaddr
+  TICK   93 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   94 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | lw: AR = rs1 + imm
+  TICK   95 | mPC= 21 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=51 a1=0 a2=0 | lw: MDR = MEM[AR]
+  TICK   96 | mPC= 22 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | lw: rd = MDR
+  TICK   97 | mPC=  0 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK   98 | mPC= 50 | PC=0x0028 IR=0x18280003 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | beqz/bnez: if cond PC += imm
+  TICK   99 | mPC=  0 | PC=0x002c IR=0x17600000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK  100 | mPC= 30 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | sw: AR = rs1 + imm
+  TICK  101 | mPC= 31 | PC=0x002c IR=0x17600000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | sw: MEM[AR] = rd
+  TICK  102 | mPC=  0 | PC=0x0030 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK  103 | mPC= 60 | PC=0x0020 IR=0x25fffffd AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | j: PC + jaddr
+  TICK  104 | mPC=  0 | PC=0x0024 IR=0x15580000 AR=0x0084 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | FETCH: IR=MEM[PC], PC+=4
+  TICK  105 | mPC= 20 | PC=0x0024 IR=0x15580000 AR=0x0080 | zero=0 ra=0 sp=0 t0=128 t1=132 a0=10 a1=0 a2=0 | lw: AR = rs1 + imm
+  --- EOF на такте 106, останов ---
+expected_code: |-
+  0000  00000080  .word 0x00000080
+  0004  00000084  .word 0x00000084
+  0008  12C00000  la→lui t0, 0x0
+  000C  04D80000  la→addi t0, 0x0
+  0010  14D80000  lw t0 0 t0
+  0014  13000000  la→lui t1, 0x0
+  0018  05200004  la→addi t1, 0x4
+  001C  15200000  lw t1 0 t1
+  0020  15580000  lw a0 0 t0
+  0024  18280003  beqz a0 done
+  0028  17600000  sw a0 0 t1
+  002C  25FFFFFD  j loop
+expected_output: |
+  test123

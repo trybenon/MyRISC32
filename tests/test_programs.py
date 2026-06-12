@@ -1,6 +1,7 @@
-"""Golden tests: транслируем .asm, запускаем симулятор, сверяем вывод."""
 import struct
 from pathlib import Path
+
+import pytest
 
 from machine import simulate
 from translator import translate
@@ -9,51 +10,45 @@ PROJECT_ROOT = Path(__file__).parent.parent
 PROGRAMS_DIR = PROJECT_ROOT / "programs"
 
 
-def build_and_run(asm_name: str, input_str: str = "", max_ticks: int = 100_000_000):
-    """
-    Хелпер: прочитать .asm, оттранслировать, запустить симулятор.
-    Возвращает (output, log).
-    """
-    asm_path = PROGRAMS_DIR / asm_name
-    source = asm_path.read_text(encoding="utf-8")
+@pytest.mark.golden_test("golden/*.yaml")
+def test_programs(golden):
+    # 1. Читаем параметры из эталона (yaml)
+    source_name = golden["source_name"]
+    input_str = golden.get("input", "")
 
-    binary, _debug, symbols = translate(source)
+    # Читаем исходный код программы
+    asm_path = PROGRAMS_DIR / source_name
+    source_code = asm_path.read_text(encoding="utf-8")
+
+    # 2. Транслируем
+    binary, debug, symbols = translate(source_code)
+
+    # Формируем отладочный вывод (машинный код) для эталона
+    debug_lines = []
+    for addr, word, mnemon in debug:
+        debug_lines.append(f"{addr:04X}  {word:08X}  {mnemon}")
+    debug_out_str = "\n".join(debug_lines)
 
     # Собираем бинарник с заголовком entry_point
     assert "_start" in symbols, "В программе нет метки _start"
     entry_point = symbols["_start"]
-    header = struct.pack(">I", entry_point)
-    full_binary = header + binary
+    full_binary = struct.pack(">I", entry_point) + binary
 
-    return simulate(full_binary, input_str, max_ticks=max_ticks)
+    # 3. Симулируем (с запасом тактов)
+    output, log = simulate(full_binary, input_str, max_ticks=200_000)
 
+    # 4. Обрабатываем журнал
+    # По ТЗ: "Если размер журнала слишком большой, его полное включение нецелесообразно.
+    # Необходимо адаптировать журнал..."
+    # Оставим первые 50 и последние 50 тактов.
+    if len(log) > 120:
+        short_log = "\n".join(
+            log[:50] + ["\n... [ ЖУРНАЛ ОБРЕЗАН ] ...\n"] + log[-50:]
+        )
+    else:
+        short_log = "\n".join(log)
 
-def test_hello():
-    """hello.asm должна вывести 'Hello, World!\\n'."""
-    output, _log = build_and_run("hello.asm")
-    assert output == "Hello, World!\n"
-
-
-def test_cat_passes_input():
-    """cat.asm — каждый прочитанный символ выводит."""
-    output, _log = build_and_run("cat.asm", input_str="gagarka")
-    assert output == "gagarka"
-
-
-def test_cat_empty_input():
-    """cat без ввода: ничего не выводит, корректно завершается."""
-    output, _log = build_and_run("cat.asm", input_str="")
-    assert output == ""
-
-
-def test_hello_user_name():
-    """hello_user_name спрашивает имя и приветствует."""
-    output, _log = build_and_run("hello_user_name.asm", input_str="Luke Skywalker\n")
-    assert "What is your name?" in output
-    assert "Luke Skywalker!" in output
-
-
-def test_euler4():
-    """Euler Problem 4: наибольший палиндром = 906609."""
-    output, _log = build_and_run("euler4.asm")
-    assert output.strip() == "906609"
+    # 5. Проверяем данные с эталоном (поля out["..."] заполняются плагином)
+    assert output == golden.out["expected_output"]
+    assert debug_out_str == golden.out["expected_code"]
+    assert short_log == golden.out["expected_log"]
